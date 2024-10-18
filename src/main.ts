@@ -3,7 +3,7 @@ import { createScope } from "@submodule/core"
 import { add, init } from "./cmds"
 
 const initCmd = new Command('init')
-  .option('--pkg', 'package manager to use, default to be detected')
+  .option('--pkg <pkg>', 'package manager to use, default to be detected')
   .action(async (opts) => {
     const scope = createScope()
     let error: undefined | unknown = undefined
