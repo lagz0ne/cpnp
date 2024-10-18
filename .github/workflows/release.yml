@@ -28,19 +28,19 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           release-type: node
           package-name: cpnp
+
       - uses: actions/checkout@v4 # v4
-        if: ${{ steps.release.outputs.release_created }}
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           registry-url: "https://registry.npmjs.org"
-        if: ${{ steps.release.outputs.release_created }}
+
       - uses: oven-sh/setup-bun@v2
+
       - run: bun install
       - run: bun run test
-      - run: npm ci
-        if: ${{ steps.release.outputs.release_created }}
-      - run: npm publish
+
+      - run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
         if: ${{ steps.release.outputs.release_created }}
