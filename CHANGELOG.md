@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/lagz0ne/cpnp/compare/v1.1.0...v1.1.1) (2024-10-18)
+
+
+### Features
+
+* added pkgManager option to init ([bce3557](https://github.com/lagz0ne/cpnp/commit/bce355782d3f3e46ff2a3424d6c7a0217b5fbbc6))
+
 ## [1.1.0](https://github.com/lagz0ne/cpnp/compare/v1.0.0...v1.1.0) (2024-10-18)
 
 
