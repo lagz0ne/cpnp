@@ -51,7 +51,7 @@
   },
   "scripts": {
     "dev": "tsup --watch",
-    "test": "vitest run",
+    "test": "vitest run  --passWithNoTests",
     "build": "tsup"
   }
 }
