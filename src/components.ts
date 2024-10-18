@@ -24,7 +24,7 @@ export type Component = z.infer<typeof componentSchema>
 
 
 
-const componentConfigPath = (dir: string) => path.join(dir, 'component.json')
+const componentConfigPath = (dir: string) => path.join(dir, 'cpnp.json')
 
 const findPkgDir = map(
   resolvePackagePathModule,
@@ -105,7 +105,7 @@ export const pull = map(
 
       const componentConfig = await readComponentConfig(componentConfigPath(pkgDir))
       if (!componentConfig) {
-        throw new Error(`component ${componentName} is not valid, component.json is not found in the target dir`)
+        throw new Error(`component ${componentName} is not valid, cpnp.json is not found in the target dir`)
       }
 
       return {
