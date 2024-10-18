@@ -3,17 +3,47 @@ import { writeConfig, readConfig, configSchema } from "./config";
 import { installComponent } from "./components"
 
 import debug from "debug"
+import { niModule } from "./mods";
 
 const addCmdDebug = debug('cpnp:cmds:add')
+const initCmdDebug = debug('cpnp:cmds:init')
 
 export const init = map(
-  writeConfig,
-  async (writeConfig) => {
-    const defaultInitConfig = configSchema.parse({
-      version: '1.0'
-    })
+  combine({ writeConfig, niModule }),
+  async ({ writeConfig, niModule }) => {
+    return async ({ runtime }: { runtime?: 'bun' | 'npm' | 'yarn' | 'pnpm' }) => {
+      let pkgManager: 'bun' | 'npm' | 'yarn' | 'pnpm' | undefined = runtime
 
-    await writeConfig(defaultInitConfig)
+      if (!pkgManager) {
+        initCmdDebug('detecting package manager')
+        const detected = await niModule.detect()
+
+        if (!detected) {
+          initCmdDebug('no package manager detected, defaulting to npm')
+          pkgManager = 'npm'
+        } else {
+          switch (detected) {
+            case 'yarn':
+            case 'yarn@berry':
+              pkgManager = 'yarn'
+              break
+            case 'pnpm':
+            case 'pnpm@6':
+              pkgManager = 'pnpm'
+              break
+            default:
+              pkgManager = detected
+          }
+        }
+      }
+
+      const defaultInitConfig = configSchema.parse({
+        version: '1.0',
+        pkgManager
+      })
+
+      await writeConfig(defaultInitConfig)
+    }
   }
 )
 

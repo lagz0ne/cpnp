@@ -3,11 +3,14 @@ import { createScope } from "@submodule/core"
 import { add, init } from "./cmds"
 
 const initCmd = new Command('init')
-  .action(async () => {
+  .option('--pkg', 'package manager to use, default to be detected')
+  .action(async (opts) => {
     const scope = createScope()
     let error: undefined | unknown = undefined
 
-    await scope.resolve(init)
+    const initFn = await scope.resolve(init)
+
+    await initFn({ runtime: opts.pkg })
       .catch((e) => {
         error = e
       })
