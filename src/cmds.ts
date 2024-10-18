@@ -41,7 +41,7 @@ export const add = map(
   }
 )
 
-const installDebug = debug('inc:cmds:install')
+const installDebug = debug('cpnp:cmds:install')
 export const install = map(
   combine({ readConfig, installComponent }),
   async ({ readConfig, installComponent }) => {
