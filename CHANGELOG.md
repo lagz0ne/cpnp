@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/lagz0ne/cpnp/compare/v1.1.1...v1.1.2) (2024-10-18)
+
+
+### Bug Fixes
+
+* corrected how args work ([a51258b](https://github.com/lagz0ne/cpnp/commit/a51258b91bdec2809ea38aca332269a9c501022a))
+
 ## [1.1.1](https://github.com/lagz0ne/cpnp/compare/v1.1.0...v1.1.1) (2024-10-18)
 
 
