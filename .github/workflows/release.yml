@@ -16,6 +16,10 @@ name: release-please
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: write
+
     steps:
       - uses: GoogleCloudPlatform/release-please-action@v4
         id: release
