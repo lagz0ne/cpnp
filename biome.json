@@ -1,0 +1,7 @@
+{
+  "files": {
+    "ignore": [
+      "tests/**/*.ts"
+    ]
+  }
+}

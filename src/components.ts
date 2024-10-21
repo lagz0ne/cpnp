@@ -3,10 +3,11 @@ import { combine, map, provide } from "@submodule/core"
 import { z } from "zod"
 import debug from "debug"
 import path from "node:path"
-import fs from "node:fs"
+
 // @ts-ignore
 import { parse } from "parse-package-name"
-import { execaModule, resolvePackagePathModule } from "./mods"
+import { execaModule, fsModule, gigetModule, resolvePackagePathModule } from "./mods"
+import os from "node:os"
 
 const pullDebug = debug('cpnp:components:pull')
 const installDependenciesDebug = debug('cpnp:components:install:dependencies')
@@ -22,15 +23,41 @@ const componentSchema = z.object({
 
 export type Component = z.infer<typeof componentSchema>
 
+export const cacheDir = map(
+  fsModule,
+  (fs) => {
+    const homeDir = os.homedir()
+    const cacheDir = path.join(homeDir, '.cpnp')
 
+    fs.mkdirSync(cacheDir, { recursive: true })
+    return cacheDir
+  })
+
+export const pullArtifact = map(
+  combine({ cacheDir, gigetModule }),
+  async ({ cacheDir, gigetModule }) => {
+    return async (artifact: string) => {
+      const { source, dir, ...rest } = await gigetModule.downloadTemplate(artifact, {
+        force: true,
+        cwd: cacheDir,
+        dir: artifact,
+        preferOffline: true
+      })
+
+      console.log(source, dir, rest)
+
+      return dir
+    }
+  }
+)
 
 const componentConfigPath = (dir: string) => path.join(dir, 'cpnp.json')
 
 const findPkgDir = map(
   resolvePackagePathModule,
   async (resolvePackagePathModule) => {
-    return async (dir: string): Promise<string | null> => {
-      const pkgDir = resolvePackagePathModule.default(dir, process.cwd())
+    return async (dir: string, cwd: string): Promise<string | null> => {
+      const pkgDir = resolvePackagePathModule.default(dir, cwd)
       if (pkgDir) {
         return pkgDir
       }
@@ -39,16 +66,18 @@ const findPkgDir = map(
     }
   })
 
-const readComponentConfig = provide(() => {
-  return async (file: string): Promise<Component | undefined> => {
-    if (fs.existsSync(file)) {
-      const content = fs.readFileSync(file, 'utf-8')
-      return componentSchema.parse(JSON.parse(content))
-    }
+const readComponentConfig = map(
+  fsModule,
+  (fs) => {
+    return async (file: string): Promise<Component | undefined> => {
+      if (fs.existsSync(file)) {
+        const content = fs.readFileSync(file, 'utf-8')
+        return componentSchema.parse(JSON.parse(content))
+      }
 
-    return undefined
-  }
-})
+      return undefined
+    }
+  })
 
 const installDependencies = map(
   combine({ execaModule }),
@@ -89,14 +118,15 @@ const removeDependencies = map(
 )
 
 export const pull = map(
-  combine({ installDependencies, findPkgDir, readComponentConfig }),
-  async ({ installDependencies, findPkgDir, readComponentConfig }) => {
-    return async (config: Config, componentName: string) => {
+  combine({ cacheDir, installDependencies, findPkgDir, readComponentConfig }),
+  async ({ cacheDir, installDependencies, findPkgDir, readComponentConfig }) => {
+    return async (config: Config, componentName: string, cwd: string) => {
+
       await installDependencies(config.pkg, [componentName], 'dev')
 
       const parsedPkgName = parse(componentName)
 
-      const pkgPackage = await findPkgDir(parsedPkgName.name)
+      const pkgPackage = await findPkgDir(parsedPkgName.name, cwd)
       if (!pkgPackage) {
         throw new Error(`cannot find package.json in ${componentName}`)
       }
@@ -118,8 +148,8 @@ export const pull = map(
 
 const fileProcessDebug = debug('cpnp:components:file_process')
 export const fileProcess = map(
-  combine({}),
-  async () => async (
+  combine({ fsModule }),
+  async ({ fsModule: fs }) => async (
     config: Config,
     component: {
       pkgDir: string,
@@ -168,8 +198,8 @@ export const fileProcess = map(
 export const installComponent = map(
   combine({ pull, fileProcess }),
   async ({ pull, fileProcess }) => {
-    return async (config: Config, component: string, alias?: string) => {
-      const { pkgDir, componentConfig } = await pull(config, component)
+    return async (config: Config, component: string, cwd: string, alias?: string) => {
+      const { pkgDir, componentConfig } = await pull(config, component, cwd)
       const name = alias || parse(component).name
       await fileProcess(config, { name, componentConfig, pkgDir })
     }

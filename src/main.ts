@@ -1,6 +1,6 @@
 import { Command, program } from "commander"
 import { createScope } from "@submodule/core"
-import { add, init } from "./cmds"
+import { add, init, update } from "./cmds"
 
 const initCmd = new Command('init')
   .option('--pkg <pkg>', 'package manager to use, default to be detected')
@@ -10,7 +10,31 @@ const initCmd = new Command('init')
 
     const initFn = await scope.resolve(init)
 
-    await initFn({ runtime: opts.pkg })
+    await initFn({ runtime: opts.pkg, cwd: process.cwd() })
+      .catch((e) => {
+        error = e
+      })
+      .finally(async () => {
+        await scope.dispose()
+
+        if (error) {
+          console.error(error)
+          process.exit(1)
+        }
+
+        process.exit(0)
+      })
+  })
+
+const updateCmd = new Command('update')
+  .argument('<artifact>', 'artifact to update')
+  .action(async (artifact: string) => {
+    const scope = createScope()
+    let error: undefined | unknown = undefined
+
+    const updateFn = await scope.resolve(update)
+
+    await updateFn(artifact)
       .catch((e) => {
         error = e
       })
@@ -34,7 +58,7 @@ const addCmd = new Command('add')
     let error: undefined | unknown = undefined
 
     await scope.resolve(add)
-      .then(adder => adder(component, alias))
+      .then(adder => adder(component, process.cwd(), alias))
       .catch((e) => {
         error = e
       })
@@ -52,4 +76,5 @@ const addCmd = new Command('add')
 
 program.addCommand(initCmd)
 program.addCommand(addCmd)
+program.addCommand(updateCmd)
 program.parse()
