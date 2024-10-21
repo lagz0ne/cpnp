@@ -6,6 +6,10 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "src/**"
+      - "test/**"
+      - "package.json"
 
 name: release-please
 jobs:

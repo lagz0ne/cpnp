@@ -43,6 +43,11 @@ export const getFs = (dir: DirContent, prefix?: string) => {
   }
 }
 
+export const dir = (opts?: {
+  extraFiles?: DirContent,
+  prefix?: string
+}) => getFs({ ...opts?.extraFiles }, opts?.prefix)
+
 export const cleanTestDir = () => {
   const tmpDir = os.tmpdir()
   const dirPath = path.join(tmpDir, 'cpnp')

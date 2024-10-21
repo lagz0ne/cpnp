@@ -44,8 +44,7 @@ describe("init.cmd", () => {
     [pkgjson, 'npm'],
   ] as const)("hardcoded-pkg manager %O, %s", async ([type, expected]) => {
     const { testDir, clean, read } = type({ prefix: expected })
-
-    const initFn = await scope.resolve(init)
+    const { initFn } = await scope.resolve({ initFn: init })
     await initFn({
       runtime: 'bun',
       cwd: testDir
@@ -64,7 +63,9 @@ describe("init.cmd", () => {
     [pnpm, 'pnpm'],
     [pkgjson, 'npm'],
   ] as const)("will skip if there's cpnp.json %O, %s", async ([type, expected]) => {
-    const { testDir, clean, stats } = type({ extraFiles: { 'cpnp.json': JSON.stringify(configSchema.parse({})) }, prefix: expected })
+    const csm = await scope.resolve(configSchema)
+
+    const { testDir, clean, stats } = type({ extraFiles: { 'cpnp.json': JSON.stringify(csm.parse({})) }, prefix: expected })
     const lastModified = stats('cpnp.json').mtime
 
     const initFn = await scope.resolve(init)

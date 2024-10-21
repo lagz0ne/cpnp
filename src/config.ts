@@ -1,26 +1,29 @@
-import { provide, map, combine } from "@submodule/core"
-import { z } from "zod"
+import { provide, map, combine, type inferProvide } from "@submodule/core"
 import debug from "debug"
 import path from "node:path"
 // @ts-ignore
 import { parse } from "parse-package-name"
-import { fsModule } from "./mods"
+import { fsModule, zModule } from "./mods"
+import type { z } from "zod"
 
 const logger = debug('cpnp:config')
 
-export const configSchema = z.object({
-  version: z.string().optional(),
-  pkg: z.enum(['bun', 'npm', 'yarn', 'pnpm']).default('npm'),
-  components: z.array(
-    z.string()
-      .or(z.object({ name: z.string(), alias: z.string().optional() }))
-  )
-    .default([])
-    .transform(c => c.map(c => typeof c === 'string' ? { name: c } : c)),
-  installDir: z.string().optional().default('mods')
-})
+export const configSchema = map(
+  combine({ z: zModule }),
+  ({ z }) => z.object({
+    version: z.string().optional(),
+    pkg: z.enum(['bun', 'npm', 'yarn', 'pnpm']).default('npm'),
+    components: z.array(
+      z.string()
+        .or(z.object({ name: z.string(), alias: z.string().optional() }))
+    )
+      .default([])
+      .transform(c => c.map(c => typeof c === 'string' ? { name: c } : c)),
+    installDir: z.string().optional().default('mods')
+  })
+)
 
-export type Config = Omit<z.infer<typeof configSchema>, never>
+export type Config = Omit<z.infer<inferProvide<typeof configSchema>>, never>
 
 export const configHelper = {
   name: (config: Config, name: string): (string[] | undefined) => {
@@ -42,8 +45,8 @@ const configFiles = provide(() => {
 })
 
 export const readConfig = map(
-  combine({ configFiles, fsModule }),
-  ({ configFiles, fsModule: fs }) => async (cwd: string) => {
+  combine({ configFiles, fsModule, configSchema }),
+  ({ configFiles, fsModule: fs, configSchema }) => async (cwd: string) => {
     logger('reaching out cpnp.json %s', configFiles)
 
     const configFile = configFiles
@@ -79,8 +82,8 @@ export const readConfig = map(
 )
 
 export const writeConfig = map(
-  combine({ readConfig, configFiles, fsModule }),
-  async ({ readConfig, configFiles, fsModule: fs }) => {
+  combine({ readConfig, configFiles, fsModule, configSchema }),
+  async ({ readConfig, configFiles, fsModule: fs, configSchema }) => {
     return async (config: unknown, cwd: string) => {
       const existingConfig = await readConfig(cwd)
 

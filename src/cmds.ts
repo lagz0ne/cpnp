@@ -8,14 +8,21 @@ import { detectorDetectModule } from "./mods";
 const addCmdDebug = debug('cpnp:cmds:add')
 const initCmdDebug = debug('cpnp:cmds:init')
 
+type InitState =
+  | { type: 'ok' }
+  | { type: 'unknown', error: unknown }
+  | { type: 'initialized' }
+
 export const init = map(
-  combine({ readConfig, writeConfig, detectorDetectModule }),
-  async ({ readConfig, writeConfig, detectorDetectModule }) => {
-    return async ({ runtime, cwd }: { cwd: string, runtime?: 'bun' | 'npm' | 'yarn' | 'pnpm' }) => {
+  combine({ readConfig, writeConfig, detectorDetectModule, configSchema }),
+  async ({ readConfig, writeConfig, detectorDetectModule, configSchema }) => async (
+    { runtime, cwd }: { cwd: string, runtime?: 'bun' | 'npm' | 'yarn' | 'pnpm' }
+  ): Promise<InitState> => Promise.resolve().then(
+    async (): Promise<InitState> => {
       const currentConfig = await readConfig(cwd)
       if (currentConfig.configFile) {
         initCmdDebug('config file already exists, skip')
-        return
+        return { type: 'initialized' }
       }
 
       let pkgManager: 'bun' | 'npm' | 'yarn' | 'pnpm' | undefined = runtime
@@ -51,8 +58,9 @@ export const init = map(
       })
 
       await writeConfig(defaultInitConfig, cwd)
-    }
-  }
+      return { type: 'ok' }
+    })
+    .catch(e => ({ type: 'unknown', error: e }))
 )
 
 export const update = map(
@@ -64,38 +72,51 @@ export const update = map(
   }
 )
 
+type AddState =
+  | { type: 'ok' }
+  | { type: 'unknown', error: unknown }
+  | { type: 'uninitialized', error: Error }
+
 export const add = map(
   combine({ readConfig, writeConfig, installComponent }),
   async ({ readConfig, writeConfig, installComponent }) => {
-    return async (component: string, cwd: string, alias?: string) => {
-      const currentConfig = await readConfig(cwd)
-      if (!currentConfig.configFile) {
-        throw new Error('need to initialized firstly')
-      }
-      addCmdDebug('current config %o', currentConfig)
+    return async (component: string, cwd: string, alias?: string) => Promise.resolve().then(
+      async (): Promise<AddState> => {
+        const currentConfig = await readConfig(cwd)
+        if (!currentConfig.configFile) {
+          return { type: 'uninitialized', error: new Error('need to initialized firstly') }
+        }
 
-      addCmdDebug('adding component { name: %s, alias: %s }', component, alias)
-      await installComponent(currentConfig.config, component, cwd, alias)
+        addCmdDebug('current config %o', currentConfig)
 
-      if (!currentConfig.hasComponent(component)) {
-        currentConfig.config.components.push({ name: component, alias })
-        await writeConfig(currentConfig.config, cwd)
-        return
-      }
+        addCmdDebug('adding component { name: %s, alias: %s }', component, alias)
+        await installComponent(currentConfig.config, component, cwd, alias)
 
-      addCmdDebug('component %s already exists, skip', component)
-    }
+        if (!currentConfig.hasComponent(component)) {
+          currentConfig.config.components.push({ name: component, alias })
+          await writeConfig(currentConfig.config, cwd)
+        }
+
+        addCmdDebug('component %s already exists, skip', component)
+        return { type: 'ok' }
+      })
+      .catch(e => ({ type: 'unknown', error: e }))
   }
 )
+
+type InstallState =
+  | { type: 'ok' }
+  | { type: 'unknown', error: unknown }
+  | { type: 'uninitialized', error: Error }
 
 const installDebug = debug('cpnp:cmds:install')
 export const install = map(
   combine({ readConfig, installComponent }),
-  async ({ readConfig, installComponent }) => {
-    return async (cwd: string) => {
+  async ({ readConfig, installComponent }) => async (cwd: string): Promise<InstallState> => Promise.resolve()
+    .then(async (): Promise<InstallState> => {
       const currentConfig = await readConfig(cwd)
       if (!currentConfig.configFile) {
-        throw new Error('need to initialized firstly')
+        return { type: 'uninitialized', error: new Error('need to initialized firstly') }
       }
 
       installDebug('current config %o', currentConfig)
@@ -103,6 +124,8 @@ export const install = map(
         const component = typeof c === 'string' ? { name: c } : c
         await installComponent(currentConfig.config, component.name, cwd, component.alias)
       }
-    }
-  }
+
+      return { type: 'ok' }
+    })
+    .catch((e) => ({ type: 'unknown', error: e }))
 )

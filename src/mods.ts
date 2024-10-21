@@ -23,3 +23,11 @@ export const detectorCmdModule = provide(async () => {
 export const fsModule = provide(async () => {
   return await import('node:fs')
 })
+
+export const jsonpatchModule = provide(async () => {
+  return await import('fast-json-patch')
+})
+
+export const zModule = provide(async () => {
+  return await import('zod')
+})

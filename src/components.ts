@@ -1,27 +1,29 @@
-import { type Config, configHelper } from "./config"
-import { combine, map, provide } from "@submodule/core"
-import { z } from "zod"
+import type { Config } from "./config"
+import { combine, map, type inferProvide } from "@submodule/core"
 import debug from "debug"
 import path from "node:path"
+import type { z } from "zod"
 
 // @ts-ignore
 import { parse } from "parse-package-name"
-import { execaModule, fsModule, gigetModule, resolvePackagePathModule } from "./mods"
+import { execaModule, fsModule, gigetModule, resolvePackagePathModule, zModule } from "./mods"
 import os from "node:os"
 
 const pullDebug = debug('cpnp:components:pull')
 const installDependenciesDebug = debug('cpnp:components:install:dependencies')
 
-const componentSchema = z.object({
-  name: z.string(),
-  version: z.string(),
-  dependencies: z.string().array().default([]),
-  files: z.array(
-    z.string().or(z.object({ file: z.string(), overwrite: z.boolean().default(false) }))
-  )
-})
+const componentSchema = map(
+  zModule,
+  z => z.object({
+    version: z.string(),
+    dependencies: z.string().array().optional().default([]),
+    files: z.array(
+      z.string().or(z.object({ file: z.string(), overwrite: z.boolean().default(false) }))
+    )
+  })
+)
 
-export type Component = z.infer<typeof componentSchema>
+export type Component = z.infer<inferProvide<typeof componentSchema>>
 
 export const cacheDir = map(
   fsModule,
@@ -44,8 +46,6 @@ export const pullArtifact = map(
         preferOffline: true
       })
 
-      console.log(source, dir, rest)
-
       return dir
     }
   }
@@ -67,8 +67,8 @@ const findPkgDir = map(
   })
 
 const readComponentConfig = map(
-  fsModule,
-  (fs) => {
+  combine({ fs: fsModule, componentSchema }),
+  ({ fs, componentSchema }) => {
     return async (file: string): Promise<Component | undefined> => {
       if (fs.existsSync(file)) {
         const content = fs.readFileSync(file, 'utf-8')
