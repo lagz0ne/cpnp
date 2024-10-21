@@ -3,19 +3,10 @@ permissions:
   pull-requests: write
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "release version"
-        required: true
-
-      release-as:
-        description: "release type"
-        required: false
-        default: "minor"
   push:
     branches:
       - main
+
 name: release-please
 jobs:
   release-please:
