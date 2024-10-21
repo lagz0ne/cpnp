@@ -2,9 +2,9 @@ import { provide, map, combine } from "@submodule/core"
 import { z } from "zod"
 import debug from "debug"
 import path from "node:path"
-import fs from "node:fs"
 // @ts-ignore
 import { parse } from "parse-package-name"
+import { fsModule } from "./mods"
 
 const logger = debug('cpnp:config')
 
@@ -37,16 +37,18 @@ export const configHelper = {
 
 const configFiles = provide(() => {
   return [
-    path.join(process.cwd(), 'cpnp.json'),
+    'cpnp.json',
   ]
 })
 
 export const readConfig = map(
-  configFiles,
-  (configFiles) => async () => {
-    logger('reaching out incompleto.json %s', configFiles)
+  combine({ configFiles, fsModule }),
+  ({ configFiles, fsModule: fs }) => async (cwd: string) => {
+    logger('reaching out cpnp.json %s', configFiles)
 
-    const configFile = configFiles.find(f => fs.existsSync(f))
+    const configFile = configFiles
+      .map(f => path.join(cwd, f))
+      .find(f => fs.existsSync(f))
     if (!configFile) {
       return { configFile: undefined }
     }
@@ -77,10 +79,10 @@ export const readConfig = map(
 )
 
 export const writeConfig = map(
-  combine({ readConfig, configFiles }),
-  async ({ readConfig, configFiles }) => {
-    return async (config: unknown) => {
-      const existingConfig = await readConfig()
+  combine({ readConfig, configFiles, fsModule }),
+  async ({ readConfig, configFiles, fsModule: fs }) => {
+    return async (config: unknown, cwd: string) => {
+      const existingConfig = await readConfig(cwd)
 
       if (existingConfig.configFile) {
         const updated = configSchema.parse(config)
@@ -88,7 +90,7 @@ export const writeConfig = map(
         await fs.promises.writeFile(existingConfig.configFile, JSON.stringify(updated, null, 2))
       } else {
         logger('writing config %o', config)
-        await fs.promises.writeFile(configFiles[0], JSON.stringify(config, null, 2))
+        await fs.promises.writeFile(path.join(cwd, configFiles[0]), JSON.stringify(config, null, 2))
       }
     }
   }
