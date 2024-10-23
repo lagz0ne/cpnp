@@ -1,16 +1,16 @@
 import { Command, program } from "commander"
 import { createScope } from "@submodule/core"
-import { add, init, update } from "./cmds"
+import { update, use, updateConfig } from "./cmds"
 
 const initCmd = new Command('init')
-  .option('--pkg <pkg>', 'package manager to use, default to be detected')
+  .option('--pkg <pkg>', 'package manager to use, default to be detected', 'npm')
   .action(async (opts) => {
     const scope = createScope()
     let error: undefined | unknown = undefined
 
-    const initFn = await scope.resolve(init)
+    const updateConfigFn = await scope.resolve(updateConfig)
 
-    await initFn({ runtime: opts.pkg, cwd: process.cwd() })
+    await updateConfigFn({ type: 'set-runtime', runtime: opts.pkg })
       .catch((e) => {
         error = e
       })
@@ -26,55 +26,60 @@ const initCmd = new Command('init')
       })
   })
 
-const updateCmd = new Command('update')
-  .argument('<artifact>', 'artifact to update')
-  .action(async (artifact: string) => {
+const updateCmd = new Command('install')
+  .argument('<package>', 'package to install')
+  .action(async (pkg: string) => {
     const scope = createScope()
-    let error: undefined | unknown = undefined
-
     const updateFn = await scope.resolve(update)
+    let exitCode = 0
 
-    await updateFn(artifact)
-      .catch((e) => {
-        error = e
+    await updateFn(pkg)
+      .then(r => {
+        if (r.type === 'ok') {
+          console.log('adding %s ... done', pkg)
+        } else {
+          exitCode = 1
+          console.log('adding %s ... failed \n %s', pkg, r.detail)
+        }
       })
       .finally(async () => {
         await scope.dispose()
-
-        if (error) {
-          console.error(error)
-          process.exit(1)
-        }
-
-        process.exit(0)
+        process.exit(exitCode)
       })
   })
 
-const addCmd = new Command('add')
-  .argument('<component>', 'components to add')
-  .argument('[alias]', 'alias for the component')
-  .action(async (component: string, alias: string | undefined) => {
+const applyCmd = new Command('apply')
+  .argument('<package>', 'package to apply')
+  .option('-d, --dir <dir>', 'directory to apply the package', process.cwd())
+  .action(async (pkg: string, opts) => {
     const scope = createScope()
-    let error: undefined | unknown = undefined
+    try {
+      const useFn = await scope.resolve(use)
 
-    await scope.resolve(add)
-      .then(adder => adder(component, process.cwd(), alias))
-      .catch((e) => {
-        error = e
-      })
-      .finally(async () => {
-        await scope.dispose()
+      let exitCode = 0
 
-        if (error) {
-          console.error(error)
-          process.exit(1)
-        }
+      await useFn(pkg, opts.dir)
+        .then(r => {
+          console.log('result %O', r)
+          if (r.type === 'ok') {
+            console.log('applying %s ... done', pkg)
+          } else {
+            exitCode = 1
+            console.log('applying %s ... failed \n %s', pkg, r.detail)
+          }
+        })
+        .catch(e => console.error)
+        .finally(async () => {
+          await scope.dispose()
+          process.exit(exitCode)
+        })
+    } catch (e) {
+      console.error(e)
+    }
 
-        process.exit(0)
-      })
   })
 
 program.addCommand(initCmd)
-program.addCommand(addCmd)
 program.addCommand(updateCmd)
-program.parse()
+program.addCommand(applyCmd)
+program.parse(process.argv)

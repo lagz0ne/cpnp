@@ -1,100 +1,97 @@
-import { provide, map, combine, type inferProvide } from "@submodule/core"
+import { provide, map, combine, type inferProvide, value } from "@submodule/core"
 import debug from "debug"
 import path from "node:path"
-// @ts-ignore
-import { parse } from "parse-package-name"
 import { fsModule, zModule } from "./mods"
 import type { z } from "zod"
+import os from "node:os"
 
 const logger = debug('cpnp:config')
+
+export const defaultHomeDir = provide(() => {
+  return path.join(os.homedir(), '.cpnp')
+})
 
 export const configSchema = map(
   combine({ z: zModule }),
   ({ z }) => z.object({
-    version: z.string().optional(),
-    pkg: z.enum(['bun', 'npm', 'yarn', 'pnpm']).default('npm'),
-    components: z.array(
-      z.string()
-        .or(z.object({ name: z.string(), alias: z.string().optional() }))
-    )
-      .default([])
-      .transform(c => c.map(c => typeof c === 'string' ? { name: c } : c)),
-    installDir: z.string().optional().default('mods')
+    version: z.string().optional().default('1.0.0'),
+    pkg: z.enum(['bun', 'npm', 'yarn', 'pnpm']).default('npm')
   })
 )
 
 export type Config = Omit<z.infer<inferProvide<typeof configSchema>>, never>
 
-export const configHelper = {
-  name: (config: Config, name: string): (string[] | undefined) => {
-    const pkgName = parse(name)
-    const component = config.components.find(c => typeof c === 'string' ? pkgName.name === parse(c).name : parse(c).name === pkgName.name)
+const configFile = value('cpnp.json')
 
-    if (typeof component === 'string') {
-      return [parse(component).name]
+const initHomeDirDebug = debug('cpnp:cmds:initHomeDir')
+
+export const homeDir = map(
+  combine({ fs: fsModule, defaultHomeDir, configFile, configSchema }),
+  async ({ fs, defaultHomeDir, configFile, configSchema }) => {
+    if (!fs.existsSync(defaultHomeDir)) {
+      initHomeDirDebug('home dir %s not exists, creating', defaultHomeDir)
+      fs.mkdirSync(defaultHomeDir, { recursive: true })
     }
 
-    return component?.alias ? [component.alias] : undefined
-  },
-}
+    const pkgJsonPath = path.join(defaultHomeDir, 'package.json')
+    if (!fs.existsSync(pkgJsonPath)) {
+      initHomeDirDebug('package.json not exists, creating')
+      fs.writeFileSync(pkgJsonPath, JSON.stringify({ name: 'cpnp', version: '1.0.0' }))
+    }
 
-const configFiles = provide(() => {
-  return [
-    'cpnp.json',
-  ]
-})
+    const cpnpJsonPath = path.join(defaultHomeDir, configFile)
+    if (!fs.existsSync(cpnpJsonPath)) {
+      initHomeDirDebug('cpnp.json not exists, creating')
+      fs.writeFileSync(cpnpJsonPath, JSON.stringify(configSchema.parse({}), null, 2))
+    }
+
+    return defaultHomeDir
+  }
+)
+
+export const hasPackage = map(
+  combine({ homeDir, fs: fsModule, z: zModule }),
+  async ({ homeDir, fs, z }) => async (pkg: string) => {
+    const pkgJsonPath = path.join(homeDir, 'package.json')
+
+    const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'))
+    const validatedpkgJson = z.object({
+      dependencies: z.record(z.string()).optional().default({}),
+      devDependencies: z.record(z.string()).optional().default({}),
+      peerDependencies: z.record(z.string()).optional().default({}),
+    }).parse(pkgJson)
+
+    if (!validatedpkgJson.dependencies[pkg] && !validatedpkgJson.devDependencies[pkg] && !validatedpkgJson.peerDependencies[pkg]) {
+      return false
+    }
+
+    return true
+  }
+)
 
 export const readConfig = map(
-  combine({ configFiles, fsModule, configSchema }),
-  ({ configFiles, fsModule: fs, configSchema }) => async (cwd: string) => {
-    logger('reaching out cpnp.json %s', configFiles)
+  combine({ fsModule, configSchema, configFile, homeDir }),
+  ({ fsModule: fs, configSchema, configFile, homeDir }) => async () => {
+    logger('looking for out cpnp.json %s', configFile)
+    const configFileOnDisk = path.join(homeDir, configFile)
 
-    const configFile = configFiles
-      .map(f => path.join(cwd, f))
-      .find(f => fs.existsSync(f))
-    if (!configFile) {
-      return { configFile: undefined }
-    }
-
-    const configContent = await fs.promises.readFile(configFile, 'utf-8')
+    const configContent = await fs.promises.readFile(configFileOnDisk, 'utf-8')
     const rawConfig: Config = configSchema.parse(JSON.parse(configContent))
 
     const config = structuredClone(rawConfig)
-
-    // remove version from config names
-    config.components = config.components.map(c => {
-      const parsedname = parse(c.name)
-      return {
-        ...c,
-        name: parsedname.name
-      }
-    })
-
-    return {
-      configFile,
-      config,
-      hasComponent: (name: string): Config['components'][number] | undefined => {
-        const parsedName = parse(name).name
-        return config.components.find(c => c.name === parsedName)
-      },
-    }
+    return config
   }
 )
 
 export const writeConfig = map(
-  combine({ readConfig, configFiles, fsModule, configSchema }),
-  async ({ readConfig, configFiles, fsModule: fs, configSchema }) => {
-    return async (config: unknown, cwd: string) => {
-      const existingConfig = await readConfig(cwd)
+  combine({ homeDir, configFile, fs: fsModule, configSchema }),
+  async ({ homeDir, configFile, fs, configSchema }) => {
+    return async (config: unknown) => {
+      const validatedConfig = configSchema.parse(config)
+      const configContent = JSON.stringify(validatedConfig, null, 2)
+      const configFileOnDisk = path.join(homeDir, configFile)
 
-      if (existingConfig.configFile) {
-        const updated = configSchema.parse(config)
-        logger('writing config %o', updated)
-        await fs.promises.writeFile(existingConfig.configFile, JSON.stringify(updated, null, 2))
-      } else {
-        logger('writing config %o', config)
-        await fs.promises.writeFile(path.join(cwd, configFiles[0]), JSON.stringify(config, null, 2))
-      }
+      fs.writeFileSync(configFileOnDisk, configContent, 'utf-8')
     }
   }
 )

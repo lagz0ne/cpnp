@@ -8,6 +8,10 @@ export const resolvePackagePathModule = provide(async () => {
   return await import('resolve-package-path')
 })
 
+export const npmPackageArgModule = provide(async () => {
+  return await import('npm-package-arg')
+})
+
 export const gigetModule = provide(async () => {
   return await import('giget')
 })
@@ -30,4 +34,8 @@ export const jsonpatchModule = provide(async () => {
 
 export const zModule = provide(async () => {
   return await import('zod')
+})
+
+export const oraModule = provide(async () => {
+  return await import('ora')
 })

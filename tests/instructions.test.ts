@@ -62,7 +62,7 @@ describe("test patch instruction", () => {
       type: 'patch'
     }, component.testDir, target.testDir, false)
 
-    expect(patchResult.type).toBe('result')
+    expect(patchResult.type).toBe('ok')
     expect(JSON.parse(target.read('package.json')).scripts.run).toBeUndefined()
 
     const applyResult = await patchFn({
@@ -70,7 +70,7 @@ describe("test patch instruction", () => {
       to: './package.json',
       type: 'patch'
     }, component.testDir, target.testDir, true)
-    expect(applyResult.type).toBe('result')
+    expect(applyResult.type).toBe('ok')
     expect(JSON.parse(target.read('package.json')).scripts.run).toBe('run')
   })
 })
